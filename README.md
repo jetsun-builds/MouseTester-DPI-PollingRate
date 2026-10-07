@@ -6,7 +6,7 @@
 
 本仓库为独立项目，保留原项目 MIT 许可与来源声明。仓库名：**MouseTester-DPI-PollingRate**；界面为中文，发布版本为单个 EXE。
 
-[下载最新版本](https://github.com/JetsunWorks/MouseTester-DPI-PollingRate-new/releases/latest) · [详细使用说明](使用说明.md) · [原始项目](https://github.com/microe1/MouseTester)
+[下载最新版本](https://github.com/JetsunWorks/MouseTester-DPI-PollingRate/releases/latest) · [详细使用说明](使用说明.md) · [原始项目](https://github.com/microe1/MouseTester)
 
 ## 界面与实测示例
 
