@@ -32,6 +32,8 @@ namespace MouseTester
         private bool changingDeviceList, manualDevice;
         private bool namesLoading;
         private bool enumeratingDevices;
+        private bool startupInitialized;
+        private bool firstPaintLogged;
         private readonly Button start = new Button { Text = "开始测量 (F5)", AutoSize = true };
         private readonly Button stop = new Button { Text = "取消测量 (Esc)", AutoSize = true, Enabled = false };
         private readonly MotionView motionView = new MotionView();
@@ -40,6 +42,8 @@ namespace MouseTester
         private readonly List<MotionSample> recent = new List<MotionSample>();
         private readonly List<MotionSample> captured = new List<MotionSample>();
         private readonly Timer refresh = new Timer { Interval = 250 };
+        private readonly Timer startup = new Timer { Interval = 200 };
+        private readonly Timer deviceRefresh = new Timer { Interval = 250 };
         private IntPtr selected;
         private bool measuring;
         private readonly List<double> repeated = new List<double>();
@@ -55,6 +59,8 @@ namespace MouseTester
 
         public CalibrationForm(RawInputSource source)
         {
+            SuspendLayout();
+            StartupLog.Mark("Form constructor after field initialization");
             this.source = source;
             Text = "Mouse Tester, 检测鼠标回报率、DPI";
             ClientSize = new Size(930, 905);
@@ -126,26 +132,49 @@ namespace MouseTester
             resultText.TextChanged += delegate { HighlightResults(resultText); };
             rateText.TextChanged += delegate { HighlightResults(rateText); };
             refresh.Tick += delegate { UpdateRate(); };
-            refresh.Start();
             deviceText.Text = "请只移动要测试的鼠标以锁定设备";
-            RefreshDevices();
+            deviceCount.Text = "正在准备鼠标设备…";
+            deviceChoice.Items.Add("自动识别：移动要测试的鼠标");
+            deviceChoice.SelectedIndex = 0;
             resultText.Text = "当前为直接测量模式：不用填写 DPI 或回报率。\r\n回报率直接移动即可；DPI 测量只需要桌面实际移动距离（默认 10cm），F5 开始、F6 结束。\r\n若知道标称 DPI，可勾选上方对比项。上次距离填错时，修改距离后点击“修正上次距离”。\r\n改变鼠标 DPI 档位后，请重新选择鼠标清空旧统计。";
-            FormClosed += delegate { refresh.Stop(); refresh.Dispose(); source.RawMotion -= Receive; source.RawDevicesChanged -= OnDevicesChanged; deviceTip.Dispose(); dpiHighlightFont.Dispose(); rateHighlightFont.Dispose(); };
+            startup.Tick += delegate {
+                startup.Stop();
+                startupInitialized = true;
+                StartupLog.Mark("Deferred startup initialization");
+                RefreshDevices();
+                refresh.Start();
+            };
+            Shown += delegate { StartupLog.Mark("Form shown"); startup.Start(); };
+            deviceRefresh.Tick += delegate { deviceRefresh.Stop(); RefreshDevices(); };
+            FormClosed += delegate { startup.Stop(); startup.Dispose(); deviceRefresh.Stop(); deviceRefresh.Dispose(); refresh.Stop(); refresh.Dispose(); source.RawMotion -= Receive; source.RawDevicesChanged -= OnDevicesChanged; deviceTip.Dispose(); dpiHighlightFont.Dispose(); rateHighlightFont.Dispose(); };
+            ResumeLayout(true);
+            StartupLog.Mark("Form constructor finished");
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (!firstPaintLogged) { firstPaintLogged = true; StartupLog.Mark("First form paint"); StartupLog.Flush(); }
         }
 
         private void OnDevicesChanged()
         {
-            if (IsDisposed || !IsHandleCreated) return;
-            BeginInvoke(new Action(delegate { if (!IsDisposed) RefreshDevices(); }));
+            StartupLog.Mark("Device notification");
+            if (!startupInitialized || IsDisposed || !IsHandleCreated) return;
+            // A registration or hot-plug can announce multiple HID interfaces.
+            // Coalesce the burst rather than queueing a rebuild for every interface.
+            deviceRefresh.Stop();
+            deviceRefresh.Start();
         }
 
         private void RefreshDevices()
         {
+            StartupLog.Mark("Refresh devices requested");
             if (enumeratingDevices) return;
             enumeratingDevices = true;
             deviceCount.Text = "正在读取鼠标设备…";
             var hwnd = Handle;
-            Task.Run(delegate { return MouseDevices.Enumerate(); }).ContinueWith(task => {
+            Task.Run(delegate { StartupLog.Mark("Enumerate begin"); var found = MouseDevices.Enumerate(); StartupLog.Mark("Enumerate end; count=" + found.Count); return found; }).ContinueWith(task => {
                 if (IsDisposed || !IsHandleCreated) return;
                 try { BeginInvoke(new Action(delegate {
                     enumeratingDevices = false;
@@ -158,10 +187,19 @@ namespace MouseTester
 
         private void ApplyDeviceList(List<MouseDevice> found)
         {
+            found = found.Where(d => d.Handle != IntPtr.Zero && !string.IsNullOrWhiteSpace(d.Path)).ToList();
+            StartupLog.Mark("Apply device list begin");
+            if (devices.Count == found.Count && found.All(d => devices.Any(old => old.Handle == d.Handle && old.Path == d.Path)))
+            {
+                deviceCount.Text = "鼠标设备：" + devices.Count;
+                StartupLog.Mark("Device list unchanged; skip rebuild"); StartupLog.Flush();
+                return;
+            }
+            deviceChoice.BeginUpdate();
             try
             {
                 devices = found;
-                deviceCount.Text = "鼠标输入设备：" + devices.Count;
+                deviceCount.Text = "鼠标设备：" + devices.Count;
                 changingDeviceList = true;
                 deviceChoice.Items.Clear();
                 deviceChoice.Items.Add("自动识别：移动要测试的鼠标");
@@ -179,11 +217,11 @@ namespace MouseTester
                     deviceText.Text = "所选设备已断开，请重新选择或移动待测鼠标。";
                 }
                 else ShowSelectedDevice();
-                deviceTip.SetToolTip(deviceCount, "Windows Raw Input 鼠标设备数量；可能包含触摸板、虚拟设备或同一物理鼠标的多个接口。");
+                deviceTip.SetToolTip(deviceCount, "仅显示具有设备路径的鼠标，排除无设备路径的合成输入源。触摸板或有设备路径的虚拟驱动仍可能被 Windows 作为鼠标报告。");
                 ResolveNamesInBackground();
             }
             catch (Exception ex) { deviceCount.Text = "设备枚举失败"; deviceTip.SetToolTip(deviceCount, ex.Message); }
-            finally { changingDeviceList = false; }
+            finally { changingDeviceList = false; deviceChoice.EndUpdate(); StartupLog.Mark("Apply device list end"); StartupLog.Flush(); }
         }
 
         private void ResolveNamesInBackground()
@@ -191,7 +229,7 @@ namespace MouseTester
             if (namesLoading || devices.Count == 0) return;
             namesLoading = true;
             var snapshot = devices.ToArray();
-            Task.Run(delegate { return MouseDevices.ResolveNames(snapshot); }).ContinueWith(task => {
+            Task.Run(delegate { StartupLog.Mark("Resolve names begin"); var named = MouseDevices.ResolveNames(snapshot); StartupLog.Mark("Resolve names end"); return named; }).ContinueWith(task => {
                 if (IsDisposed || !IsHandleCreated) return;
                 try { BeginInvoke(new Action(delegate {
                     namesLoading = false;
@@ -203,11 +241,14 @@ namespace MouseTester
                     }
                     int index = deviceChoice.SelectedIndex;
                     changingDeviceList = true;
+                    deviceChoice.BeginUpdate();
+                    try {
                     deviceChoice.Items.Clear(); deviceChoice.Items.Add("自动识别：移动要测试的鼠标");
                     foreach (var d in devices) deviceChoice.Items.Add(d);
                     deviceChoice.SelectedIndex = index >= 0 && index < deviceChoice.Items.Count ? index : 0;
-                    changingDeviceList = false;
+                    } finally { changingDeviceList = false; deviceChoice.EndUpdate(); }
                     ShowSelectedDevice();
+                    StartupLog.Mark("Name display updated"); StartupLog.Flush();
                 })); } catch (InvalidOperationException) { }
             });
         }
@@ -258,6 +299,9 @@ namespace MouseTester
         {
             if (measuring) seenInput++;
             if (!relative || device == IntPtr.Zero) { if (measuring) absoluteInput++; return; }
+            // Do not let an invisible synthetic device win automatic selection
+            // or mix injected input into the physical mouse measurement.
+            if (!devices.Any(d => d.Handle == device)) { if (measuring) otherInput++; return; }
             if (selected == IntPtr.Zero)
             {
                 if (x == 0 && y == 0) return;
@@ -290,7 +334,8 @@ namespace MouseTester
             recent.RemoveAll(s => now - s.Ms > 2000);
             if (recent.Count < 200 || double.IsNaN(previousTime) || now - previousTime > 250 || recent[recent.Count - 1].Ms - recent[0].Ms < 500)
             {
-                rateText.Text = "回报率：等待充分的连续移动数据（近 2 秒窗口）\r\n这是 Windows 原始移动事件的到达率估计，静止时不能判断硬件回报率。";
+                const string waiting = "回报率：等待充分的连续移动数据（近 2 秒窗口）\r\n这是 Windows 原始移动事件的到达率估计，静止时不能判断硬件回报率。";
+                if (rateText.Text != waiting) rateText.Text = waiting;
                 return;
             }
             var r = Measurement.Rate(recent);

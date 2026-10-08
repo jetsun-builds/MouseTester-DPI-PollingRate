@@ -87,7 +87,12 @@ class MeasurementTests
             calibration.Show();
             Application.DoEvents();
             var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var fakeDevices = new List<MouseDevice> { new MouseDevice { Handle = new IntPtr(123), Name = "测试鼠标 A", Path = "test-A" }, new MouseDevice { Handle = new IntPtr(456), Name = "测试鼠标 B", Path = "test-B" } };
+            typeof(CalibrationForm).GetMethod("ApplyDeviceList", flags).Invoke(calibration, new object[] { new List<MouseDevice>(fakeDevices) { new MouseDevice { Handle = new IntPtr(789), Name = "合成输入", Path = "" } } });
             var receive = typeof(CalibrationForm).GetMethod("Receive", flags);
+            receive.Invoke(calibration, new object[] { new IntPtr(789), 99999, 0, Stopwatch.GetTimestamp(), true, (ushort)0 });
+            if ((IntPtr)typeof(CalibrationForm).GetField("selected", flags).GetValue(calibration) != IntPtr.Zero) throw new Exception("synthetic device won auto selection");
+            if (((ComboBox)typeof(CalibrationForm).GetField("deviceChoice", flags).GetValue(calibration)).Items.Count != 3) throw new Exception("synthetic device visible");
             var distance = (NumericUpDown)typeof(CalibrationForm).GetField("distance", flags).GetValue(calibration);
             var compare = (CheckBox)typeof(CalibrationForm).GetField("compareNominal", flags).GetValue(calibration);
             var nominal = (NumericUpDown)typeof(CalibrationForm).GetField("nominal", flags).GetValue(calibration);
@@ -154,7 +159,6 @@ class MeasurementTests
             if (!nominal.Enabled || trials.Count != 0) throw new Exception("optional comparison configuration failed");
             compare.Checked = false;
             if (nominal.Enabled || ((string)typeof(CalibrationForm).GetField("savedResult", flags).GetValue(calibration)).Contains("偏差：")) throw new Exception("disable comparison failed");
-            var fakeDevices = new List<MouseDevice> { new MouseDevice { Handle = new IntPtr(123), Name = "测试鼠标 A", Path = "test-A" }, new MouseDevice { Handle = new IntPtr(456), Name = "测试鼠标 B", Path = "test-B" } };
             typeof(CalibrationForm).GetMethod("ApplyDeviceList", flags).Invoke(calibration, new object[] { fakeDevices });
             var choices = (ComboBox)typeof(CalibrationForm).GetField("deviceChoice", flags).GetValue(calibration);
             if (choices.Items.Count != 3) throw new Exception("two-device list missing");

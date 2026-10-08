@@ -20,7 +20,7 @@ foreach ($taskName in @('mscorlib', 'System', 'System.Core', 'System.Drawing', '
     $taskArguments += '/reference:' + $taskReference
 }
 
-foreach ($taskName in @('Program.cs', 'RawInputSource.cs', 'RawInputSource.Interop.cs', 'CalibrationForm.cs', 'Measurement.cs', 'MotionView.cs', 'MouseDevices.cs')) {
+foreach ($taskName in @('Program.cs', 'StartupLog.cs', 'RawInputSource.cs', 'RawInputSource.Interop.cs', 'CalibrationForm.cs', 'Measurement.cs', 'MotionView.cs', 'MouseDevices.cs')) {
     $taskFile = Join-Path $taskSource $taskName
     if (!(Test-Path -LiteralPath $taskFile)) { throw 'Source file missing' }
     $taskArguments += $taskFile

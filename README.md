@@ -6,7 +6,15 @@
 
 本仓库为独立项目，保留原项目 MIT 许可与来源声明。仓库名：**MouseTester-DPI-PollingRate**；界面为中文，发布版本为单个 EXE。
 
-[下载最新版本](https://github.com/JetsunWorks/MouseTester-DPI-PollingRate/releases/latest) · [详细使用说明](使用说明.md) · [原始项目](https://github.com/microe1/MouseTester)
+[下载最新版本](https://github.com/jetsun-builds/MouseTester-DPI-PollingRate/releases/latest) · [详细使用说明](使用说明.md) · [原始项目](https://github.com/microe1/MouseTester)
+
+## 当前版本 1.7.4：启动与鼠标设备过滤
+
+启动时先绘制界面，再读取设备；成批设备通知合并处理，设备列表未变化时不重复重建。无设备路径的合成输入源不再显示，也不参与自动识别或测量。在测试电脑上，原先 75 个 Raw Input 接口中仅保留两只具有 HID 路径的鼠标。
+
+[下载当前单文件 EXE](https://raw.githubusercontent.com/jetsun-builds/MouseTester-DPI-PollingRate/main/downloads/MouseTester-CPI.exe)。以后 Windows 程序发布只提供 EXE，不生成程序 ZIP 包。旧版本标签中的文件保持其原有内容。
+
+若需要排查启动问题，运行 `MouseTester-CPI.exe --startup-log`，日志 `MouseTester-startup.log` 写入 EXE 同目录，记录初始化阶段、线程和接口数量，不记录鼠标移动计数或设备标识。
 
 ## 界面与实测示例
 
@@ -34,7 +42,7 @@
 
 ## 快速开始
 
-1. 从 Releases 下载 EXE（或下载 ZIP 后解压），运行 `MouseTester-CPI.exe`。无需 OxyPlot DLL、config 文件或管理员权限；需要 .NET Framework 4.6 或更新的 4.x。
+1. 从上方当前版本链接下载 EXE，运行 `MouseTester-CPI.exe`。无需 OxyPlot DLL、config 文件或管理员权限；需要 .NET Framework 4.6 或更新的 4.x。
 2. 有多个鼠标时，在设备列表选择待测鼠标；也可以保留自动识别，测试时只移动待测鼠标。
 3. **测回报率：** 连续移动鼠标 3–5 秒，读取绿色 Hz 数值，无需填写 DPI 或按 F5。
 4. **测 DPI：** 用直尺在鼠标垫/桌面上标记相距 10cm 的两个位置，在程序中填写实际距离 10cm。鼠标外壳同一位置对齐起点 → 按 F5 → 保持朝向沿直线移动到终点 → 停稳后按 F6。读取蓝色实测 DPI。
@@ -46,7 +54,7 @@
 
 ---
 
-Windows 鼠标测试工具，基于 [microe1/MouseTester](https://github.com/microe1/MouseTester) 修改。当前版本 1.7.2，仅显示一个中文测量窗口。
+Windows 鼠标测试工具，基于 [microe1/MouseTester](https://github.com/microe1/MouseTester) 修改。当前版本 1.7.4，仅显示一个中文测量窗口。
 
 不用预先知道鼠标的 DPI 或回报率：回报率直接移动即可测试；实测 DPI 只需要鼠标在桌面上移动的实际距离。标称 DPI 是可选对比项，不参与实测 DPI 计算。
 
@@ -79,7 +87,7 @@ Windows 鼠标测试工具，基于 [microe1/MouseTester](https://github.com/mic
 
 显示 Windows Raw Input 鼠标输入设备数量、设备选择列表和当前设备名称。名称优先读取 Windows 提供的设备描述；无法读取具体型号时显示 HID 名称、VID/PID 和句柄。悬停设备选择框或当前鼠标名称可查看设备路径。
 
-数量可能包含触摸板、虚拟设备或同一鼠标的多个接口，不一定等于实物鼠标数量。名称在后台读取，不阻塞测试；“刷新设备”可重新枚举，插拔会自动刷新。
+仅列出具有非空设备路径的鼠标，过滤无设备路径的合成输入接口；自动选择和测量也忽略被过滤的输入。触摸板或具有设备路径的虚拟驱动仍可能被 Windows 作为鼠标报告，所以不保证每个接口都对应一只独立的实体鼠标。名称在后台读取，不阻塞测试；“刷新设备”可重新枚举，插拔会自动刷新。
 
 - 手动模式：从列表选中设备，只接收它的移动；F5 不更换设备。
 - 自动模式：实时回报率锁定首先移动的设备；每次 F5 后重新识别首先移动的设备。测量期间不要动其他鼠标。

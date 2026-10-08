@@ -54,6 +54,9 @@ namespace MouseTester
                             var text = new StringBuilder(checked((int)length + 1));
                             if (GetRawInputDeviceInfo(item.Handle, 0x20000007, text, ref length) != uint.MaxValue) path = text.ToString();
                         }
+                        // Synthetic input sources may have valid handles but return
+                        // an empty RIDI_DEVICENAME; they are not selectable mice.
+                        if (string.IsNullOrWhiteSpace(path)) continue;
                         var id = Regex.Match(path, @"VID_[0-9A-F]{4}.*?PID_[0-9A-F]{4}", RegexOptions.IgnoreCase);
                         devices.Add(new MouseDevice { Handle = item.Handle, Path = path, Name = id.Success ? "HID 鼠标（" + id.Value.Replace("&", " ") + "）" : "HID 鼠标" });
                     }
