@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Win32.SafeHandles;
 
 namespace MouseTester
 {
@@ -28,6 +29,11 @@ namespace MouseTester
         [DllImport("setupapi.dll", EntryPoint = "SetupDiGetDeviceRegistryPropertyW", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool SetupDiGetDeviceRegistryProperty(IntPtr set, ref DeviceInfo info, uint property, out uint type, byte[] buffer, uint size, out uint required);
         [DllImport("setupapi.dll", EntryPoint = "SetupDiGetDevicePropertyW", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool SetupDiGetDeviceProperty(IntPtr set, ref DeviceInfo info, ref PropertyKey key, out uint type, byte[] buffer, uint size, out uint required, uint flags);
         [DllImport("setupapi.dll")] static extern bool SetupDiDestroyDeviceInfoList(IntPtr set);
+        [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern SafeFileHandle OpenDevice(string path, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+        [DllImport("hid.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        static extern bool HidD_GetProductString(SafeFileHandle device, [Out] StringBuilder buffer, uint length);
 
         public static List<MouseDevice> Enumerate()
         {
@@ -72,11 +78,25 @@ namespace MouseTester
             var named = new List<MouseDevice>();
             foreach (var d in devices)
             {
-                string name;
-                try { name = FriendlyName(d.Path); } catch { name = d.Name; }
-                named.Add(new MouseDevice { Handle = d.Handle, Path = d.Path, Name = string.IsNullOrWhiteSpace(name) || name == "HID 鼠标" ? d.Name : name });
+                string product = null, system = null;
+                try { product = ProductName(d.Path); } catch { }
+                try { system = FriendlyName(d.Path); } catch { }
+                string name = UsbDeviceNames.Resolve(d.Path, product, system);
+                named.Add(new MouseDevice { Handle = d.Handle, Path = d.Path, Name = name });
             }
             return named;
+        }
+
+        private static string ProductName(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            // Open for metadata only; no input report reads or device writes.
+            using (SafeFileHandle device = OpenDevice(path, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero))
+            {
+                if (device.IsInvalid) return null;
+                var buffer = new StringBuilder(256);
+                return HidD_GetProductString(device, buffer, 512) ? buffer.ToString() : null;
+            }
         }
 
         private static string FriendlyName(string path)

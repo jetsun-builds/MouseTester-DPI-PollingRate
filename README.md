@@ -11,6 +11,7 @@ Windows 鼠标 DPI 检测、鼠标回报率检测、无线游戏鼠标 DPI 检�
 ## 使用方法
 
 有多只鼠标时，先在设备列表选择待测鼠标；使用自动识别时，只移动要测试的那只。
+设备名称优先读取鼠标自身信息，再由内置数据库补充；查不到时显示 VID/PID。无线设备可能显示接收器名称。
 
 ### 测回报率
 
@@ -44,3 +45,5 @@ Windows 鼠标 DPI 检测、鼠标回报率检测、无线游戏鼠标 DPI 检�
 基于 microe1/MouseTester 的 Raw Input 采集代码开发，重新实现中文测量界面、DPI 与回报率统计、轨迹显示及多鼠标支持。
 
 [原始项目](https://github.com/microe1/MouseTester) · [MIT 许可](LICENSE)
+
+内置 USB 型号数据库来自 USB ID Repository。[第三方声明](THIRD-PARTY-NOTICES.txt)
