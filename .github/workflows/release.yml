@@ -6,7 +6,6 @@ on:
     paths:
       - 'src/**'
       - 'build.ps1'
-      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
@@ -57,7 +56,7 @@ jobs:
             '- 实际移动距离必须与填写值一致；不抬起、不旋转、不来回。光标碰到屏幕边缘仍会计数。',
             '- 切换鼠标或 DPI 档位后，点击“重新选择鼠标”清空旧平均值。',
             '',
-            '[使用说明与截图](https://github.com/' + $env:GH_REPO + '#readme)',
+            ('[使用说明与截图](https://github.com/{0}#readme)' -f $env:GH_REPO),
             '',
             '基于 microe1/MouseTester 的 Raw Input 采集代码开发，重新实现中文测量界面、DPI 与回报率统计、轨迹显示及多鼠标支持。MIT 许可。'
           )
