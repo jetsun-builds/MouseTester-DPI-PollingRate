@@ -1,0 +1,83 @@
+name: Build and publish EXE
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'build.ps1'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build single executable
+        shell: powershell
+        run: ./build.ps1
+      - name: Upload and publish latest release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $exe = 'bin/MouseTester-DPI.exe'
+          if (!(Test-Path -LiteralPath $exe)) { throw 'Executable missing' }
+          $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $exe).Path)
+          $version = '{0}.{1}.{2}' -f $versionInfo.FileMajorPart, $versionInfo.FileMinorPart, $versionInfo.FileBuildPart
+          $tag = 'v' + $version
+          $existingRef = & gh api "repos/$env:GH_REPO/git/ref/tags/$tag" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            $ref = $existingRef | ConvertFrom-Json
+            if ($ref.object.sha -ne $env:RELEASE_COMMIT) {
+              $tag += '-build.' + $env:BUILD_NUMBER
+            }
+          }
+          $notes = @(
+            'Windows 鼠标 DPI 检测与回报率测试工具。',
+            '',
+            '下载下方 **MouseTester-DPI.exe** 后直接运行。需要 .NET Framework 4.6 或更新的 4.x，无需额外 DLL 或配置文件。',
+            '',
+            '- **回报率**：连续移动鼠标 3–5 秒，查看绿色 Hz。',
+            '- **DPI**：用桌面直尺标记距离，在程序中填写相同距离；鼠标摆到起点，按 F5，保持朝向沿直线移动到终点，停稳后按 F6。',
+            '- 实际移动距离必须与填写值一致；不抬起、不旋转、不来回。光标碰到屏幕边缘仍会计数。',
+            '- 切换鼠标或 DPI 档位后，点击“重新选择鼠标”清空旧平均值。',
+            '',
+            '[使用说明与截图](https://github.com/' + $env:GH_REPO + '#readme)',
+            '',
+            '基于 microe1/MouseTester 的 Raw Input 采集代码开发，重新实现中文测量界面、DPI 与回报率统计、轨迹显示及多鼠标支持。MIT 许可。'
+          )
+          $notesPath = Join-Path $env:RUNNER_TEMP 'mouse-tester-release.md'
+          $notes | Set-Content -LiteralPath $notesPath -Encoding utf8
+          & gh release view $tag --json isDraft > $null 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            & gh release create $tag --target $env:RELEASE_COMMIT --title "$tag — 鼠标 DPI 与回报率测试" --notes-file $notesPath --draft
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot create release draft' }
+          }
+          & gh release upload $tag $exe --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot upload executable' }
+          $release = (& gh release view $tag --json assets | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify release upload' }
+          $asset = @($release.assets | Where-Object { $_.name -eq 'MouseTester-DPI.exe' })
+          if ($asset.Count -ne 1 -or $asset[0].size -ne (Get-Item -LiteralPath $exe).Length) {
+            throw 'Uploaded executable is missing or has an unexpected size'
+          }
+          & gh release edit $tag --target $env:RELEASE_COMMIT --title "$tag — 鼠标 DPI 与回报率测试" --notes-file $notesPath --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish release' }
+          $published = (& gh release view $tag --json isDraft,url | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or $published.isDraft) { throw 'Release is still a draft' }
+          Write-Output $published.url
