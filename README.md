@@ -4,9 +4,9 @@ Windows 鼠标 DPI 检测、鼠标回报率检测、无线游戏鼠标 DPI 检�
 
 ## 下载
 
-[**下载单文件 EXE**](https://raw.githubusercontent.com/jetsun-builds/MouseTester-DPI-PollingRate/main/downloads/MouseTester-CPI.exe)
+[**下载单文件 EXE**](https://github.com/jetsun-builds/MouseTester-DPI-PollingRate/releases/latest/download/MouseTester-DPI.exe)
 
-下载后直接运行 `MouseTester-CPI.exe`。需要 .NET Framework 4.6 或更新的 4.x，无需管理员权限。
+下载后直接运行 `MouseTester-DPI.exe`。需要 .NET Framework 4.6 或更新的 4.x，无需管理员权限。
 
 ## 使用方法
 
